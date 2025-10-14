@@ -1,0 +1,1937 @@
+<!--
+README: Payslip Demo (Option A) - Single-file static site (Admin/Viewer Roles)
+
+New in this version:
+- Two login roles:
+  * Admin (password: admin123) — can generate/overwrite the payslip.
+  * Viewer (password: view123) — can only view the last generated payslip.
+- Generated payslip is saved to browser storage (localStorage) so that after admin logs out,
+  a viewer can log in and view the exact rendered payslip.
+- "Generate" tools are hidden for Viewer role.
+- "Sign out" button added.
+
+How to use your demo flow:
+1) Sign in as Admin → generate payslip → it auto-saves.
+2) Click Sign out.
+3) Sign in as Viewer → sees the saved payslip; no Generate box shown.
+
+How to deploy to GitHub Pages (fast):
+1. Create a GitHub repo, add this as `index.html` at the root.
+2. Commit & push to `main`.
+3. In GitHub: Settings → Pages → enable for `main`.
+-->
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Payslip Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --muted: #64748b;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --border: #e2e8f0;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    
+    * {
+      box-sizing: border-box;
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    
+    body {
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      color: var(--text-primary);
+      position: relative;
+    }
+    
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image: 
+        radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    
+    .main-content {
+      position: relative;
+      z-index: 1;
+      background: rgba(248, 250, 252, 0.95);
+      backdrop-filter: blur(10px);
+      min-height: 100vh;
+    }
+    
+    header {
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    
+    .logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 18px;
+      box-shadow: var(--shadow);
+    }
+    
+    .container {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 20px;
+    }
+    
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 24px;
+    }
+    
+    .form-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    label {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
+    input[type=text], 
+    input[type=number], 
+    input[type=month], 
+    input[type=password],
+    select {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: #ffffff;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+    
+    input[type=text]:focus, 
+    input[type=number]:focus, 
+    input[type=month]:focus,
+    input[type=password]:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    button {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 12px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow);
+    }
+    
+    button:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 15px -3px rgba(59, 130, 246, 0.3);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    
+    .payslip {
+      padding: 24px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    td, th {
+      padding: 12px 8px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    
+    th {
+      text-align: left;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+    
+    .right {
+      text-align: right;
+    }
+    
+    .big {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    
+    .muted {
+      color: var(--muted);
+    }
+    
+    /* Enhanced Login Overlay */
+    .login-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.3s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+      from { 
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+      }
+      to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    
+    .login-box {
+      width: 100%;
+      max-width: 420px;
+      margin: 20px;
+      background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+      padding: 32px;
+      border-radius: 20px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      animation: slideUp 0.4s ease;
+      position: relative;
+    }
+    
+    .login-box::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent), #6366f1);
+      border-radius: 20px 20px 0 0;
+    }
+    
+    .login-header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 24px;
+      margin: 0 auto 16px;
+      box-shadow: 0 8px 25px -8px rgba(59, 130, 246, 0.5);
+    }
+    
+    .login-title {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    
+    .login-subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin: 0;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    
+    .login-btn {
+      width: 100%;
+      padding: 14px 20px;
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    
+    .login-footer {
+      text-align: center;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    
+    .mask {
+      letter-spacing: 2px;
+    }
+    
+    footer {
+      margin-top: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+
+    /* Enhanced Dashboard Styles */
+    .dashboard-welcome {
+      background: linear-gradient(135deg, var(--accent), #6366f1);
+      color: white;
+      padding: 32px;
+      border-radius: 20px;
+      margin-bottom: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .dashboard-welcome::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      border-radius: 50%;
+      transform: translate(50%, -50%);
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 32px;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      position: relative;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+    
+    .stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    
+    .stat-label {
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
+    .payslip-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    
+    .payslip-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--accent);
+    }
+    
+    .payslip-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    
+    .payslip-title {
+      font-weight: 600;
+      font-size: 16px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+    
+    .payslip-date {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+    
+    .payslip-status {
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      background: #ecfdf5;
+      color: #065f46;
+    }
+    
+    .payslip-amount {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--success);
+      margin-bottom: 8px;
+    }
+    
+    .payslip-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 13px;
+      border-radius: 8px;
+    }
+    
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    
+    .btn-outline:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .section-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    
+    .section-title {
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text-primary);
+    }
+    
+    .section-subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .employee-details {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+
+    .details-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .detail-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .detail-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .detail-value {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+    
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .container {
+        padding: 16px;
+      }
+      .login-box {
+        margin: 16px;
+        padding: 24px;
+      }
+      .dashboard-welcome {
+        padding: 24px;
+      }
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="main-content">
+    <header>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="logo">PS</div>
+        <div>
+          <div style="font-weight:700;font-size:18px">Payslip Portal</div>
+          <div class="small">Secure payslip viewer</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <span id="roleBadge" class="small muted">Not signed in</span>
+        <button id="signOutBtn" style="background:#374151">Sign out</button>
+      </div>
+    </header>
+
+    <div class="container">
+      <!-- ENHANCED DASHBOARD (post-login landing) -->
+      <section id="dashboard" style="display:none">
+        <!-- Welcome Header -->
+        <div class="dashboard-welcome">
+          <div style="position: relative; z-index: 1;">
+            <h1 style="margin: 0 0 8px 0; font-size: 32px; font-weight: 700;">
+              Welcome back, <span id="welcomeName">Surinder Singh</span>
+            </h1>
+            <p style="margin: 0; font-size: 16px; opacity: 0.9;">
+              Here's your payroll overview and recent activity
+            </p>
+          </div>
+        </div>
+
+        <!-- Employee Details Section -->
+        <div class="employee-details">
+          <div class="section-header" style="margin-bottom: 20px;">
+            <div class="section-icon" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white;">
+              👤
+            </div>
+            <div>
+              <div class="section-title">Employee Information</div>
+              <div class="section-subtitle">Your employment details and account information</div>
+            </div>
+          </div>
+          
+          <div class="details-grid">
+            <div class="detail-item">
+              <div class="detail-label">Full Name</div>
+              <div class="detail-value">Surinder Singh</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Employee ID</div>
+              <div class="detail-value">801517</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Entity</div>
+              <div class="detail-value">SITA Information Networking Computing UK Limited</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Pay Group</div>
+              <div class="detail-value">Pay Group 1</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Last Web Login</div>
+              <div class="detail-value">2025/10/05 7:49 PM</div>
+            </div>
+            <div class="detail-item">
+              <div class="detail-label">Account Status</div>
+              <div class="detail-value" style="color: var(--success); font-weight: 600;">Active</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #059669); color: white;">
+              £
+            </div>
+            <div class="stat-value" id="currentSalary">£45,500</div>
+            <div class="stat-label">Annual Salary</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, var(--accent), #6366f1); color: white;">
+              📊
+            </div>
+            <div class="stat-value" id="totalPayslips">0</div>
+            <div class="stat-label">Total Payslips</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white;">
+              📅
+            </div>
+            <div class="stat-value" id="lastPayDate">--</div>
+            <div class="stat-label">Last Pay Date</div>
+          </div>
+        </div>
+
+        <!-- Recent Payslips Section -->
+        <div class="card">
+          <div class="section-header">
+            <div class="section-icon" style="background: linear-gradient(135deg, #111827, #374151); color: white;">
+              £
+            </div>
+            <div>
+              <div class="section-title">Recent Payslips</div>
+              <div class="section-subtitle">View and download your latest payslips</div>
+            </div>
+          </div>
+          <div id="payslipCards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px;"></div>
+        </div>
+
+        <!-- Tax Documents Section -->
+        <div class="card" id="taxDocumentsSection" style="margin-top: 24px; display: none;">
+          <div class="section-header">
+            <div class="section-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white;">
+              📋
+            </div>
+            <div>
+              <div class="section-title">Tax Documents</div>
+              <div class="section-subtitle">Generate your annual tax documents (P11D & P60)</div>
+            </div>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px;">
+            <!-- P60 Document -->
+            <div class="payslip-card">
+              <div class="payslip-header">
+                <div>
+                  <div class="payslip-title">P60 - End of Year Certificate</div>
+                  <div class="payslip-date">Tax Year: 2024-25</div>
+                </div>
+                <span class="payslip-status" style="background: #fef3c7; color: #92400e;">Tax Form</span>
+              </div>
+              <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
+                Summary of pay and tax deductions for the tax year
+              </div>
+              <div class="payslip-actions">
+                <button class="btn-sm" id="generateP60Btn" style="flex: 1;">Generate P60</button>
+                <button class="btn-sm btn-outline" id="downloadP60Btn">Download</button>
+              </div>
+            </div>
+            
+            <!-- P11D Document -->
+            <div class="payslip-card">
+              <div class="payslip-header">
+                <div>
+                  <div class="payslip-title">P11D - Expenses & Benefits</div>
+                  <div class="payslip-date">Tax Year: 2024-25</div>
+                </div>
+                <span class="payslip-status" style="background: #fef3c7; color: #92400e;">Tax Form</span>
+              </div>
+              <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">
+                Expenses payments and benefits provided by employer
+              </div>
+              <div class="payslip-actions">
+                <button class="btn-sm" id="generateP11DBtn" style="flex: 1;">Generate P11D</button>
+                <button class="btn-sm btn-outline" id="downloadP11DBtn">Download</button>
+              </div>
+            </div>
+          </div>
+          
+          <div style="margin-top: 24px; padding: 16px; background: #f0f9ff; border-radius: 12px; border: 1px solid #0ea5e9;">
+            <div style="font-weight: 600; color: #0369a1; margin-bottom: 8px;">📘 Tax Document Information</div>
+            <div style="font-size: 14px; color: #0369a1;">
+              <strong>P60:</strong> Shows total pay and tax deducted during the tax year (6 April to 5 April).<br>
+              <strong>P11D:</strong> Details any expenses and benefits you received from your employer.
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card" style="margin-top: 24px;">
+          <div class="section-header">
+            <div class="section-icon" style="background: linear-gradient(135deg, var(--accent), #6366f1); color: white;">
+              ⚡
+            </div>
+            <div>
+              <div class="section-title">Quick Actions</div>
+              <div class="section-subtitle">Common tasks and helpful links</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+            <button id="viewAllPayslipsBtn" class="btn-outline btn-sm" style="padding: 16px; text-align: left; display: flex; align-items: center; gap: 12px;">
+              <div style="width: 32px; height: 32px; background: #f0f9ff; border-radius: 8px; display: flex; align-items: center; justify-content: center;">📋</div>
+              <div>
+                <div style="font-weight: 600; margin-bottom: 2px;">View All Payslips</div>
+                <div style="font-size: 12px; opacity: 0.7;">Browse complete payslip history</div>
+              </div>
+            </button>
+            <button id="taxDocumentsBtn" class="btn-outline btn-sm" style="padding: 16px; text-align: left; display: flex; align-items: center; gap: 12px;">
+              <div style="width: 32px; height: 32px; background: #fef3c7; border-radius: 8px; display: flex; align-items: center; justify-content: center;">📄</div>
+              <div>
+                <div style="font-weight: 600; margin-bottom: 2px;">Tax Documents</div>
+                <div style="font-size: 12px; opacity: 0.7;">Generate P11D & P60</div>
+              </div>
+            </button>
+            <button class="btn-outline btn-sm" style="padding: 16px; text-align: left; display: flex; align-items: center; gap: 12px;" disabled>
+              <div style="width: 32px; height: 32px; background: #f9fafb; border-radius: 8px; display: flex; align-items: center; justify-content: center;">👤</div>
+              <div>
+                <div style="font-weight: 600; margin-bottom: 2px;">Profile Settings</div>
+                <div style="font-size: 12px; opacity: 0.7;">Coming soon</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div class="card grid" id="mainWorkspace">
+        <div>
+          <!-- Back to Dashboard Button -->
+          <div style="margin-bottom: 16px;">
+            <button id="backToDashboard" class="btn-outline btn-sm" style="display: flex; align-items: center; gap: 8px;">
+              <span>←</span> Back to Dashboard
+            </button>
+          </div>
+          
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+            <div>
+              <div style="font-weight:700;font-size:20px">Payslip Details</div>
+              <div class="small">View and download your payslips.</div>
+            </div>
+            <div style="display:flex;gap:12px">
+              <button id="downloadBtn">Download PDF</button>
+              <button id="printBtn" style="background:#374151">Print</button>
+            </div>
+          </div>
+
+          <!-- GENERATOR section (Admin only) -->
+          <div id="generatorSection" class="card" style="margin-bottom:20px">
+            <div style="margin-bottom:16px">
+              <label class="small">Employee name</label>
+              <input id="employeeName" type="text" value="Surinder Singh">
+            </div>
+            <div style="display:flex;gap:12px">
+              <div style="flex:1">
+                <label class="small">Pay period</label>
+                <select id="payPeriod">
+                  <option value="monthly">Monthly</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="fortnightly">Fortnightly</option>
+                </select>
+              </div>
+              <div style="width:160px">
+                <label class="small">Gross annual (£)</label>
+                <input id="grossAnnual" type="number" value="45500">
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:16px;align-items:center">
+              <label style="display:flex;gap:8px;align-items:center">
+                <input id="maskToggle" type="checkbox"> Mask salary
+              </label>
+              <label style="display:flex;gap:8px;align-items:center">
+                <input id="showYTD" type="checkbox" checked> Show Year-to-date
+              </label>
+              <div style="flex:1"></div>
+              <button id="generateBtn">Generate & Save</button>
+            </div>
+            <div class="small muted" style="margin-top:12px">
+              After generating, the payslip is saved locally so a Viewer can log in and see it.
+            </div>
+            <div style="margin-top:16px">
+              <label class="small">Payslip month</label>
+              <input id="payslipMonth" type="month" style="width:200px;margin-top:6px" />
+              <div class="small muted" style="margin-top:6px">
+                You can save up to 6 months. If you save a 7th, the oldest will be removed.
+              </div>
+            </div>
+          </div>
+
+          <!-- VIEW AREA (both roles) -->
+          <div id="viewerNotice" class="card small hidden" style="margin-bottom:20px;background:#f0f9ff;border-color:#0ea5e9">
+            Employee view — generation tools are not available.
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px">
+            <label class="small">View saved month</label>
+            <select id="historySelect" style="padding:10px;border-radius:8px;border:1.5px solid var(--border)"></select>
+            <button id="loadHistoryBtn" style="background:#6b7280">Load</button>
+            <button id="deleteHistoryBtn" style="background:#ef4444" class="hidden">Delete</button>
+          </div>
+          <div id="payslipArea" class="payslip card">
+            <div style="text-align:center;color:var(--muted)">No payslip available.</div>
+          </div>
+        </div>
+
+        <aside>
+          <div class="card">
+            <div style="font-weight:700;margin-bottom:12px;font-size:16px">Employer</div>
+            <div class="small">SITA Information Networking Computing UK</div>
+            <div class="small" style="margin-top:8px">
+              Level 5, Block A-C, Apex, Forbury Road,<br/>
+              Reading, England RG1 1AX
+            </div>
+            <div class="small" style="margin-top:8px">Phone: +44 8000260142</div>
+            <div class="small" style="margin-top:8px">Email: support@sita.aero</div>
+            <div class="small muted" style="margin-top:12px">Registration Number: 03995063</div>
+          </div>
+
+          <div class="card" style="margin-top:20px">
+            <div style="font-weight:700;margin-bottom:12px;font-size:16px">Information</div>
+            <ul class="small muted" style="margin:0;padding-left:20px">
+              <li>Pay date: last business day of the month.</li>
+              <li>Payment method: Direct deposit.</li>
+              <li>For payroll queries, contact HR.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="card small" style="margin-top:20px">
+        © 2025 SITA Information Networking Computing UK
+      </footer>
+    </div>
+  </div>
+
+  <!-- Tax Document Modal -->
+  <div id="taxDocModal" class="login-overlay" style="display: none;">
+    <div style="width: 90%; max-width: 900px; max-height: 90%; background: white; border-radius: 20px; padding: 0; overflow: hidden; position: relative;">
+      <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: #f8fafc;">
+        <h3 id="taxDocTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Tax Document</h3>
+        <div>
+          <button id="printTaxDoc" style="padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 8px; margin-right: 10px; cursor: pointer;">Print</button>
+          <button id="closeTaxDoc" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 8px; cursor: pointer;">&times;</button>
+        </div>
+      </div>
+      <div id="taxDocContent" style="padding: 20px; height: 70vh; overflow-y: auto;"></div>
+    </div>
+  </div>
+
+  <!-- Enhanced Login overlay with two roles -->
+  <div id="login" class="login-overlay" aria-hidden="false">
+    <div class="login-box">
+      <div class="login-header">
+        <div class="login-logo">PS</div>
+        <h3 class="login-title">Welcome Back</h3>
+        <p class="login-subtitle">Please sign in to your account</p>
+      </div>
+      
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="usernameInput">Username</label>
+          <input id="usernameInput" type="text" placeholder="Enter your username" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="passwordInput">Password</label>
+          <input id="passwordInput" type="password" placeholder="Enter your password" required>
+        </div>
+        
+        <button id="loginBtn" type="submit" class="login-btn">Sign In</button>
+      </form>
+      
+      <div class="login-footer">
+        <div class="small muted">Contact HR/payroll for access support</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- html2pdf CDN for download; Print as fallback -->
+  <script src="https://unpkg.com/html2pdf.js@0.9.3/dist/html2pdf.bundle.min.js"></script>
+  <script>
+    // ====== Auth (two roles) ======
+    const ADMIN_PLAIN = 'admin123';
+    const VIEW_PLAIN = 'view@123';
+    let ADMIN_HASH = ''; let VIEW_HASH = '';
+
+    async function sha256Hex(message){
+      const encoder = new TextEncoder();
+      const data = encoder.encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+    }
+
+    (async()=>{ ADMIN_HASH = await sha256Hex(ADMIN_PLAIN); VIEW_HASH = await sha256Hex(VIEW_PLAIN); })();
+
+    const loginEl = document.getElementById('login');
+    const roleBadge = document.getElementById('roleBadge');
+    const signOutBtn = document.getElementById('signOutBtn');
+    const generatorSection = document.getElementById('generatorSection');
+    const viewerNotice = document.getElementById('viewerNotice');
+
+    async function signInWith(username, password){
+      const user = (username||'').trim().toLowerCase();
+      const hv = await sha256Hex(password||'');
+      if (user === 'admin' && hv === ADMIN_HASH){ setRole('admin','admin'); return true; }
+      if (user === 'surinder.singh@sita.aero' && hv === VIEW_HASH){ setRole('viewer','surinder.singh@sita.aero'); return true; }
+      return false;
+    }
+
+    function setRole(role, username){
+      sessionStorage.setItem('payslip_role', role);
+      if (username) sessionStorage.setItem('payslip_username', username);
+      loginEl.style.display='none';
+      
+      const roleLabel = role === 'admin' ? 'Administrator' : 'Employee';
+      const nameLabel = username ? username : (role === 'admin' ? 'admin' : 'employee');
+      roleBadge.textContent = nameLabel + ' (' + roleLabel + ')';
+      
+      // Update welcome name
+      const welcomeName = document.getElementById('welcomeName');
+      if (welcomeName) {
+        welcomeName.textContent = nameLabel;
+      }
+      
+      // Show dashboard and hide main workspace initially
+      const dashboard = document.getElementById('dashboard');
+      const mainWorkspace = document.getElementById('mainWorkspace');
+      const backBtn = document.getElementById('backToDashboard');
+      
+      if (dashboard) dashboard.style.display = 'block';
+      if (mainWorkspace) mainWorkspace.style.display = 'none';
+      if (backBtn) backBtn.style.display = 'block';
+      
+      if (role === 'admin'){
+        generatorSection.classList.remove('hidden');
+        viewerNotice.classList.add('hidden');
+        const delBtn = document.getElementById('deleteHistoryBtn'); if(delBtn) delBtn.classList.remove('hidden');
+        // For admin, show workspace directly, hide dashboard
+        if (dashboard) dashboard.style.display = 'none';
+        if (mainWorkspace) mainWorkspace.style.display = 'block';
+        if (backBtn) backBtn.style.display = 'none';
+      } else {
+        generatorSection.classList.add('hidden');
+        viewerNotice.classList.remove('hidden');
+        const delBtn = document.getElementById('deleteHistoryBtn'); if(delBtn) delBtn.classList.add('hidden');
+        // For employees, show dashboard first
+        if (dashboard) dashboard.style.display = 'block';
+        if (mainWorkspace) mainWorkspace.style.display = 'none';
+        if (backBtn) backBtn.style.display = 'block';
+      }
+      
+      renderDashboard();
+      loadSavedPayslip();
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async(e) => {
+      e.preventDefault();
+      const user = document.getElementById('usernameInput').value;
+      const pass = document.getElementById('passwordInput').value;
+      const ok = await signInWith(user, pass);
+      if(!ok) {
+        alert('Invalid username or password.');
+        // Clear password field on failed login
+        document.getElementById('passwordInput').value = '';
+      }
+    });
+
+    document.getElementById('loginBtn').addEventListener('click', async(e) => {
+      if (e.target.closest('form')) return; // Let form handle it
+      const user = document.getElementById('usernameInput').value;
+      const pass = document.getElementById('passwordInput').value;
+      const ok = await signInWith(user, pass);
+      if(!ok) {
+        alert('Invalid username or password.');
+        document.getElementById('passwordInput').value = '';
+      }
+    });
+
+    signOutBtn.addEventListener('click', ()=>{
+      sessionStorage.removeItem('payslip_role');
+      sessionStorage.removeItem('payslip_username');
+      // keep the saved payslip in localStorage
+      location.reload();
+    });
+
+    // Restore session role if present
+    (function(){
+      const role = sessionStorage.getItem('payslip_role');
+      const uname = sessionStorage.getItem('payslip_username');
+      if(role){ setRole(role, uname); loginEl.style.display='none'; }
+    })();
+
+    // ====== Payslip calculation (simplified) ======
+    function calculatePayslip(grossAnnual, payPeriod='monthly'){
+      const personalAllowance = 12570;
+      const bands = [ { upTo: 50270, rate: 0.20 }, { upTo: 125140, rate: 0.40 }, { upTo: Infinity, rate: 0.45 } ];
+      const niPrimaryThreshold = 12570; // annualized
+      const niUpperEarningsLimit = 51828; // example
+      const niRateBetween = 0.08; const niRateAbove = 0.02;
+
+      const taxableAnnual = Math.max(0, grossAnnual - personalAllowance);
+      let remaining = taxableAnnual; let tax = 0; let lower = personalAllowance;
+      for(const band of bands){
+        const bandLimit = (band.upTo===Infinity) ? Infinity : Math.max(0, band.upTo - lower);
+        const amountInBand = Math.min(remaining, bandLimit);
+        if(amountInBand>0){ tax += amountInBand * band.rate; remaining -= amountInBand; lower = band.upTo; }
+        if(remaining<=0) break;
+      }
+
+      let ni = 0;
+      if (grossAnnual > niPrimaryThreshold){
+        const between = Math.max(0, Math.min(grossAnnual, niUpperEarningsLimit) - niPrimaryThreshold);
+        const above = Math.max(0, grossAnnual - niUpperEarningsLimit);
+        ni = (between * niRateBetween) + (above * niRateAbove);
+      }
+
+      const periods = payPeriod==='monthly' ? 12 : (payPeriod==='weekly'?52:26);
+      return {
+        grossAnnual,
+        grossPerPeriod: grossAnnual/periods,
+        taxAnnual: tax,
+        taxPerPeriod: tax/periods,
+        niAnnual: ni,
+        niPerPeriod: ni/periods,
+        netAnnual: grossAnnual - tax - ni,
+        netPerPeriod: (grossAnnual - tax - ni)/periods,
+        periods
+      };
+    }
+
+    // ====== Rendering & persistence ======
+    function maskValue(n){
+      if (typeof n === 'number'){
+        const s = Math.round(n).toString();
+        if (s.length<=3) return '£' + s;
+        return '£' + s[0] + 'X' + s.slice(2).replace(/[0-9]/g,'X');
+      }
+      return n;
+    }
+
+    function renderPayslip(data){
+      const container = document.getElementById('payslipArea');
+      const name = document.getElementById('employeeName')?.value || 'Employee';
+      const showYTD = document.getElementById('showYTD')?.checked ?? true;
+      const mask = document.getElementById('maskToggle')?.checked || false;
+
+      const grossPeriod = data.grossPerPeriod;
+      const taxPeriod = data.taxPerPeriod;
+      const niPeriod = data.niPerPeriod;
+      const netPeriod = data.netPerPeriod;
+
+      const grossDisplay = mask ? maskValue(grossPeriod) : '£' + grossPeriod.toFixed(2);
+      const taxDisplay = mask ? maskValue(taxPeriod) : '£' + taxPeriod.toFixed(2);
+      const niDisplay = mask ? maskValue(niPeriod) : '£' + niPeriod.toFixed(2);
+      const netDisplay = mask ? maskValue(netPeriod) : '£' + netPeriod.toFixed(2);
+
+      const ytdGross = mask? maskValue(data.grossAnnual): '£'+data.grossAnnual.toFixed(2);
+      const ytdTax = mask? maskValue(data.taxAnnual): '£'+data.taxAnnual.toFixed(2);
+      const ytdNi = mask? maskValue(data.niAnnual): '£'+data.niAnnual.toFixed(2);
+      const ytdNet = mask? maskValue(data.netAnnual): '£'+data.netAnnual.toFixed(2);
+
+      const periodLabel = document.getElementById('payPeriod')?.value || 'monthly';
+
+      container.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div>
+            <div style="font-weight:700;font-size:18px">Payslip for ${name}</div>
+            <div class="small muted">Pay period: <strong>${periodLabel}</strong></div>
+          </div>
+          <div class="muted small">Company: SITA Information Networking Computing UK</div>
+        </div>
+        <table>
+          <tr><th>Earnings</th><th class="right">Amount (${periodLabel})</th>${showYTD?'<th class="right">YTD</th>':''}</tr>
+          <tr><td>Gross pay</td><td class="right big">${grossDisplay}</td>${showYTD?`<td class="right">${ytdGross}</td>`:''}</tr>
+          <tr><td>Income Tax</td><td class="right">${taxDisplay}</td>${showYTD?`<td class="right">${ytdTax}</td>`:''}</tr>
+          <tr><td>National Insurance (Employee)</td><td class="right">${niDisplay}</td>${showYTD?`<td class="right">${ytdNi}</td>`:''}</tr>
+          <tr><th>Net pay</th><th class="right big">${netDisplay}</th>${showYTD?`<th class="right big">${ytdNet}</th>`:''}</tr>
+        </table>
+        <div style="margin-top:16px;color:var(--muted);font-size:13px">This payslip is generated electronically.</div>
+      `;
+    }
+
+    function generatePayslip(){
+      const gross = Number(document.getElementById('grossAnnual').value) || 0;
+      const payPeriod = document.getElementById('payPeriod').value;
+      const data = calculatePayslip(gross,payPeriod);
+      renderPayslip(data);
+      // persist
+      localStorage.setItem('payslip_latest_html', document.getElementById('payslipArea').innerHTML);
+      localStorage.setItem('payslip_latest_name', document.getElementById('employeeName').value||'');
+      localStorage.setItem('payslip_latest_period', payPeriod);
+      // also store raw figures for possible re-rendering
+      localStorage.setItem('payslip_latest_data', JSON.stringify(data));
+    }
+
+    function savePayslipToHistory(month, name, html, data){
+      if(!month) return; // require month (YYYY-MM)
+      const key = 'payslip_history';
+      const raw = localStorage.getItem(key);
+      const arr = raw ? JSON.parse(raw) : [];
+      // remove any existing for same month
+      const filtered = arr.filter(x=>x.month !== month);
+      // push new to front
+      filtered.unshift({ month, name, html, data, savedAt: new Date().toISOString() });
+      // keep max 6
+      const sliced = filtered.slice(0,6);
+      localStorage.setItem(key, JSON.stringify(sliced));
+    }
+
+    function getPayslipHistory(){
+      const raw = localStorage.getItem('payslip_history');
+      return raw ? JSON.parse(raw) : [];
+    }
+
+    function renderHistoryOptions(){
+      const sel = document.getElementById('historySelect');
+      sel.innerHTML = '';
+      const hist = getPayslipHistory();
+      if(hist.length===0){ const opt = document.createElement('option'); opt.value=''; opt.textContent='— no saved months —'; sel.appendChild(opt); return; }
+      hist.forEach(item=>{
+        const opt = document.createElement('option');
+        opt.value = item.month; opt.textContent = item.month + (item.name?(' — '+item.name):'');
+        sel.appendChild(opt);
+      });
+    }
+
+    function loadSavedPayslip(monthToLoad){
+      // if monthToLoad provided, load that; otherwise load latest
+      const hist = getPayslipHistory();
+      if(hist.length===0){
+        document.getElementById('payslipArea').innerHTML = '<div style="text-align:center;color:var(--muted)">No saved payslip available.</div>';
+        renderHistoryOptions();
+        return;
+      }
+      let item;
+      if(monthToLoad){ item = hist.find(h=>h.month===monthToLoad); }
+      if(!item) item = hist[0];
+      if(item){ document.getElementById('payslipArea').innerHTML = item.html; }
+      renderHistoryOptions();
+    }
+
+    document.getElementById('generateBtn')?.addEventListener('click', function(){
+      const gross = Number(document.getElementById('grossAnnual').value) || 0;
+      const payPeriod = document.getElementById('payPeriod').value;
+      const month = document.getElementById('payslipMonth').value;
+      if(!month){ alert('Please select a payslip month (YYYY-MM) before saving.'); return; }
+      const data = calculatePayslip(gross,payPeriod);
+      renderPayslip(data);
+      // persist latest html
+      const html = document.getElementById('payslipArea').innerHTML;
+      localStorage.setItem('payslip_latest_html', html);
+      localStorage.setItem('payslip_latest_name', document.getElementById('employeeName').value||'');
+      localStorage.setItem('payslip_latest_period', payPeriod);
+      localStorage.setItem('payslip_latest_data', JSON.stringify(data));
+      // save to history (up to 6 months)
+      savePayslipToHistory(month, document.getElementById('employeeName').value||'', html, data);
+      renderHistoryOptions();
+      alert('Payslip saved for ' + month + '.');
+    });
+    document.getElementById('printBtn').addEventListener('click', ()=>{ window.print(); });
+
+    document.getElementById('downloadBtn').addEventListener('click', ()=>{
+      const node = document.getElementById('payslipArea');
+      if (!node) return alert('Generate or load a payslip first');
+      const opt = { margin:0.5, filename:'payslip.pdf', image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2}, jsPDF:{ unit:'in', format:'a4', orientation:'portrait' } };
+      try{ html2pdf().set(opt).from(node).save(); }catch(e){ console.error(e); alert('Failed to create PDF — try Print instead.'); }
+    });
+
+    // Load / Delete history controls
+    document.getElementById('loadHistoryBtn').addEventListener('click', ()=>{
+      const sel = document.getElementById('historySelect');
+      const month = sel.value;
+      if(!month) return alert('Select a saved month to load');
+      loadSavedPayslip(month);
+    });
+
+    document.getElementById('deleteHistoryBtn').addEventListener('click', ()=>{
+      const sel = document.getElementById('historySelect');
+      const month = sel.value;
+      if(!month) return alert('Select a saved month to delete');
+      let hist = getPayslipHistory();
+      hist = hist.filter(h=>h.month !== month);
+      localStorage.setItem('payslip_history', JSON.stringify(hist));
+      renderHistoryOptions();
+      loadSavedPayslip();
+      alert('Deleted payslip for ' + month);
+    });
+
+    // ====== Tax Document Modal Functions ======
+    function showTaxDocumentModal(title, content) {
+      console.log('showTaxDocumentModal called with title:', title);
+      console.log('Content length:', content ? content.length : 0);
+      
+      const modal = document.getElementById('taxDocModal');
+      const titleEl = document.getElementById('taxDocTitle');
+      const contentEl = document.getElementById('taxDocContent');
+      
+      console.log('Modal elements found:', { 
+        modal: !!modal, 
+        titleEl: !!titleEl, 
+        contentEl: !!contentEl 
+      });
+      
+      if (modal && titleEl && contentEl) {
+        titleEl.textContent = title;
+        contentEl.innerHTML = content;
+        modal.style.display = 'flex';
+        console.log('Modal should now be visible');
+      } else {
+        console.error('Missing modal elements!');
+      }
+    }
+    
+    function hideTaxDocumentModal() {
+      const modal = document.getElementById('taxDocModal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+    
+    // Modal event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      const closeBtn = document.getElementById('closeTaxDoc');
+      const printBtn = document.getElementById('printTaxDoc');
+      const modal = document.getElementById('taxDocModal');
+      
+      if (closeBtn) {
+        closeBtn.addEventListener('click', hideTaxDocumentModal);
+      }
+      
+      if (printBtn) {
+        printBtn.addEventListener('click', () => {
+          const content = document.getElementById('taxDocContent');
+          if (content) {
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+              printWindow.document.write('<!DOCTYPE html><html><head><title>Tax Document</title></head><body>' + content.innerHTML + '</body></html>');
+              printWindow.document.close();
+              printWindow.print();
+            } else {
+              window.print();
+            }
+          }
+        });
+      }
+      
+      // Close modal when clicking outside
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            hideTaxDocumentModal();
+          }
+        });
+      }
+    });
+
+    // ====== Tax Document Generation ======
+    function generateP60Document() {
+      console.log('P60 Document Generation Started');
+      const hist = getPayslipHistory();
+      const currentYear = new Date().getFullYear();
+      const taxYear = `${currentYear - 1}-${currentYear.toString().slice(-2)}`;
+      
+      // Calculate annual totals from payslip history
+      let totalGrossPay = 0;
+      let totalTax = 0;
+      let totalNI = 0;
+      let totalNetPay = 0;
+      
+      hist.forEach(item => {
+        try {
+          if(item.data && typeof item.data === 'string') {
+            const data = JSON.parse(item.data);
+            totalGrossPay += data.grossAnnual || 0;
+            totalTax += data.taxAnnual || 0;
+            totalNI += data.niAnnual || 0;
+            totalNetPay += data.netAnnual || 0;
+          }
+        } catch(e) {}
+      });
+      
+      // Use current salary if no history
+      if (totalGrossPay === 0) {
+        totalGrossPay = 45500;
+        const calc = calculatePayslip(45500, 'monthly');
+        totalTax = calc.taxAnnual;
+        totalNI = calc.niAnnual;
+        totalNetPay = calc.netAnnual;
+      }
+      
+      return `
+        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px;">
+            <h1 style="color: #333; margin-bottom: 10px;">P60 - End of Year Certificate</h1>
+            <h2 style="color: #666; margin: 0;">Tax Year ${taxYear}</h2>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
+            <div>
+              <h3 style="background: #f5f5f5; padding: 10px; margin: 0 0 15px 0;">Employee Details</h3>
+              <p><strong>Name:</strong> Surinder Singh</p>
+              <p><strong>Employee ID:</strong> 801517</p>
+              <p><strong>National Insurance Number:</strong> AB123456C</p>
+              <p><strong>Tax Code:</strong> 1257L</p>
+            </div>
+            <div>
+              <h3 style="background: #f5f5f5; padding: 10px; margin: 0 0 15px 0;">Employer Details</h3>
+              <p><strong>Employer:</strong> SITA Information Networking Computing UK Limited</p>
+              <p><strong>PAYE Reference:</strong> 123/A123456</p>
+              <p><strong>Address:</strong> Level 5, Block A-C, Apex, Forbury Road, Reading, RG1 1AX</p>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 30px;">
+            <h3 style="background: #f5f5f5; padding: 10px; margin: 0 0 15px 0;">Pay and Tax Summary</h3>
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+              <tr style="background: #f9f9f9;">
+                <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Description</th>
+                <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Amount (£)</th>
+              </tr>
+              <tr>
+                <td style="padding: 12px; border: 1px solid #ddd;">Total Pay for Tax Year</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right; font-weight: bold;">£${totalGrossPay.toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px; border: 1px solid #ddd;">Total Income Tax</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">£${totalTax.toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px; border: 1px solid #ddd;">Total National Insurance</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">£${totalNI.toFixed(2)}</td>
+              </tr>
+              <tr style="background: #f0f9ff;">
+                <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Total Net Pay</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right; font-weight: bold;">£${totalNetPay.toFixed(2)}</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="margin-top: 40px; font-size: 12px; color: #666;">
+            <p><strong>Important:</strong> This certificate shows the total pay and tax deducted for the tax year ${taxYear}. Keep this document safe as you may need it for your Self Assessment tax return.</p>
+            <p>Generated on: ${new Date().toLocaleDateString('en-GB')}</p>
+          </div>
+        </div>
+      `;
+    }
+    
+    function generateP11DDocument() {
+      console.log('P11D Document Generation Started');
+      const currentYear = new Date().getFullYear();
+      const taxYear = `${currentYear - 1}-${currentYear.toString().slice(-2)}`;
+      
+      return `
+        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px;">
+            <h1 style="color: #333; margin-bottom: 10px;">P11D - Expenses and Benefits</h1>
+            <h2 style="color: #666; margin: 0;">Tax Year ${taxYear}</h2>
+          </div>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px;">
+            <div>
+              <h3 style="background: #f5f5f5; padding: 10px; margin: 0 0 15px 0;">Employee Details</h3>
+              <p><strong>Name:</strong> Surinder Singh</p>
+              <p><strong>Employee ID:</strong> 801517</p>
+              <p><strong>National Insurance Number:</strong> AB123456C</p>
+              <p><strong>Director:</strong> No</p>
+            </div>
+            <div>
+              <h3 style="background: #f5f5f5; padding: 10px; margin: 0 0 15px 0;">Employer Details</h3>
+              <p><strong>Employer:</strong> SITA Information Networking Computing UK Limited</p>
+              <p><strong>PAYE Reference:</strong> 123/A123456</p>
+              <p><strong>Address:</strong> Level 5, Block A-C, Apex, Forbury Road, Reading, RG1 1AX</p>
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 30px;">
+            <h3 style="background: #f5f5f5; padding: 10px; margin: 0 0 15px 0;">Benefits and Expenses</h3>
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+              <tr style="background: #f9f9f9;">
+                <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Benefit/Expense Type</th>
+                <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Cash Equivalent (£)</th>
+                <th style="padding: 12px; border: 1px solid #ddd; text-align: right;">Tax Paid (£)</th>
+              </tr>
+              <tr>
+                <td style="padding: 12px; border: 1px solid #ddd;">Company Car</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">0.00</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">0.00</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px; border: 1px solid #ddd;">Private Medical Insurance</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">0.00</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">0.00</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px; border: 1px solid #ddd;">Mobile Phone</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">0.00</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">0.00</td>
+              </tr>
+              <tr>
+                <td style="padding: 12px; border: 1px solid #ddd;">Travel and Subsistence</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">0.00</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right;">0.00</td>
+              </tr>
+              <tr style="background: #f0f9ff;">
+                <td style="padding: 12px; border: 1px solid #ddd; font-weight: bold;">Total Benefits</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right; font-weight: bold;">£0.00</td>
+                <td style="padding: 12px; border: 1px solid #ddd; text-align: right; font-weight: bold;">£0.00</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <h4 style="margin-top: 0; color: #0369a1;">Declaration</h4>
+            <p style="font-size: 14px; margin-bottom: 0;">This form shows details of expenses payments and benefits provided to the above employee. For the tax year ${taxYear}, no taxable benefits were provided.</p>
+          </div>
+          
+          <div style="margin-top: 40px; font-size: 12px; color: #666;">
+            <p><strong>Note:</strong> If you received any benefits or expenses from your employer, they would be listed above. This document is for tax purposes and should be kept with your tax records.</p>
+            <p>Generated on: ${new Date().toLocaleDateString('en-GB')}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // ====== Enhanced Dashboard rendering ======
+    function monthTitle(ym){
+      if(!ym) return '';
+      const [y,m] = ym.split('-').map(Number);
+      const date = new Date(y, (m||1)-1, 1);
+      return date.toLocaleString(undefined,{ month:'long', year:'numeric' });
+    }
+    
+    function updateDashboardStats(){
+      const hist = getPayslipHistory();
+      const totalPayslips = document.getElementById('totalPayslips');
+      const lastPayDate = document.getElementById('lastPayDate');
+      
+      if(totalPayslips) totalPayslips.textContent = hist.length;
+      if(lastPayDate && hist.length > 0) {
+        const latest = hist[0];
+        lastPayDate.textContent = monthTitle(latest.month);
+      }
+    }
+    
+    function renderDashboard(){
+      const dashboard = document.getElementById('dashboard');
+      const mainWorkspace = document.getElementById('mainWorkspace');
+      if(!dashboard) return;
+      
+      const role = sessionStorage.getItem('payslip_role');
+      if(role === 'viewer') {
+        dashboard.style.display = 'block';
+        if(mainWorkspace) mainWorkspace.style.display = 'none';
+        updateDashboardStats();
+      } else {
+        dashboard.style.display = 'none';
+        if(mainWorkspace) mainWorkspace.style.display = 'block';
+      }
+
+      const cards = document.getElementById('payslipCards');
+      if(!cards) return;
+      cards.innerHTML='';
+      const hist = getPayslipHistory();
+      
+      if(hist.length===0){
+        const empty = document.createElement('div');
+        empty.style.cssText = 'text-align: center; padding: 40px; color: var(--text-secondary);';
+        empty.innerHTML = `
+          <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.3;">📄</div>
+          <div style="font-weight: 600; margin-bottom: 8px;">No payslips available</div>
+          <div style="font-size: 14px;">Payslips will appear here once they are generated</div>
+        `;
+        cards.appendChild(empty);
+        return;
+      }
+      
+      hist.slice(0,3).forEach((item, index)=>{
+        const card = document.createElement('div');
+        card.className = 'payslip-card';
+        
+        // Calculate net pay for display
+        let netPay = '£--';
+        try {
+          if(item.data && typeof item.data === 'string') {
+            const data = JSON.parse(item.data);
+            if(data.netPerPeriod) {
+              netPay = '£' + Math.round(data.netPerPeriod).toLocaleString();
+            }
+          } else if(item.data && typeof item.data === 'object') {
+            if(item.data.netPerPeriod) {
+              netPay = '£' + Math.round(item.data.netPerPeriod).toLocaleString();
+            }
+          }
+          // Fallback: extract from HTML if data parsing fails
+          if(netPay === '£--' && item.html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = item.html;
+            
+            // Look for net pay in table rows
+            const rows = tempDiv.querySelectorAll('tr');
+            for(let row of rows) {
+              const header = row.querySelector('th');
+              const cell = row.querySelector('td.right.big');
+              if(header && header.textContent.toLowerCase().includes('net') && cell) {
+                const match = cell.textContent.match(/£[\d,]+\.?\d*/);
+                if(match) {
+                  netPay = match[0];
+                  break;
+                }
+              }
+            }
+            
+            // Alternative: look for any big monetary amount
+            if(netPay === '£--') {
+              const bigCells = tempDiv.querySelectorAll('td.big');
+              for(let cell of bigCells) {
+                const match = cell.textContent.match(/£[\d,]+\.?\d*/);
+                if(match && parseFloat(match[0].replace('£', '').replace(',', '')) > 1000) {
+                  netPay = match[0];
+                  break;
+                }
+              }
+            }
+          }
+        } catch(e) {
+          console.log('Error parsing payslip data:', e);
+        }
+        
+        card.innerHTML = `
+          <div class="payslip-header">
+            <div>
+              <div class="payslip-title">${monthTitle(item.month)} Payslip</div>
+              <div class="payslip-date">Pay period: ${item.month}</div>
+            </div>
+            <span class="payslip-status">Processed</span>
+          </div>
+          <div class="payslip-amount">${netPay}</div>
+          <div style="font-size: 14px; color: var(--text-secondary); margin-bottom: 16px;">Net Pay</div>
+          <div class="payslip-actions">
+            <button class="btn-sm" data-month="${item.month}" data-action="view" style="flex: 1;">View Details</button>
+            <button class="btn-sm btn-outline" data-month="${item.month}" data-action="download">Download</button>
+          </div>
+        `;
+        cards.appendChild(card);
+      });
+      
+      // Add event listeners for payslip card actions
+      cards.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const month = e.target.getAttribute('data-month');
+          const action = e.target.getAttribute('data-action');
+          if (!month) return;
+          
+          if (action === 'view') {
+            // Show main workspace and load the payslip
+            if (dashboard) dashboard.style.display = 'none';
+            if (mainWorkspace) mainWorkspace.style.display = 'block';
+            loadSavedPayslip(month);
+            const sel = document.getElementById('historySelect');
+            if (sel) sel.value = month;
+          } else if (action === 'download') {
+            // Download the payslip
+            loadSavedPayslip(month);
+            setTimeout(() => {
+              document.getElementById('downloadBtn').click();
+            }, 100);
+          }
+        });
+      });
+    }
+    
+    // Add event listeners for navigation buttons
+    document.addEventListener('DOMContentLoaded', () => {
+      const viewAllBtn = document.getElementById('viewAllPayslipsBtn');
+      if (viewAllBtn) {
+        viewAllBtn.addEventListener('click', () => {
+          const dashboard = document.getElementById('dashboard');
+          const mainWorkspace = document.getElementById('mainWorkspace');
+          if (dashboard) dashboard.style.display = 'none';
+          if (mainWorkspace) mainWorkspace.style.display = 'block';
+        });
+      }
+      
+      const backBtn = document.getElementById('backToDashboard');
+      if (backBtn) {
+        backBtn.addEventListener('click', () => {
+          const dashboard = document.getElementById('dashboard');
+          const mainWorkspace = document.getElementById('mainWorkspace');
+          const taxSection = document.getElementById('taxDocumentsSection');
+          if (dashboard) dashboard.style.display = 'block';
+          if (mainWorkspace) mainWorkspace.style.display = 'none';
+          if (taxSection) taxSection.style.display = 'none';
+          renderDashboard(); // Refresh dashboard data
+        });
+      }
+      
+      // Tax Documents Button
+      const taxDocsBtn = document.getElementById('taxDocumentsBtn');
+      if (taxDocsBtn) {
+        taxDocsBtn.addEventListener('click', () => {
+          const dashboard = document.getElementById('dashboard');
+          const mainWorkspace = document.getElementById('mainWorkspace');
+          const taxSection = document.getElementById('taxDocumentsSection');
+          if (dashboard) dashboard.style.display = 'none';
+          if (mainWorkspace) mainWorkspace.style.display = 'none';
+          if (taxSection) taxSection.style.display = 'block';
+        });
+      }
+
+      // P60 Generation - Added inside DOMContentLoaded
+      const generateP60 = document.getElementById('generateP60Btn');
+      if (generateP60) {
+        generateP60.addEventListener('click', () => {
+          alert('P60 button clicked!'); // Debug alert
+          try {
+            console.log('Generating P60 document...');
+            
+            // Test with simple content first
+            const testContent = '<h1>P60 Test Document</h1><p>This is a test to see if the modal works.</p>';
+            console.log('Showing test content in modal...');
+            showTaxDocumentModal('P60 - Test', testContent);
+          } catch (error) {
+            console.error('Error generating P60:', error);
+            alert('Error generating P60 document: ' + error.message);
+          }
+        });
+      }
+
+      // P11D Generation - Added inside DOMContentLoaded  
+      const generateP11D = document.getElementById('generateP11DBtn');
+      if (generateP11D) {
+        generateP11D.addEventListener('click', () => {
+          alert('P11D button clicked!'); // Debug alert
+          try {
+            console.log('Generating P11D document...');
+            
+            // Test with simple content first
+            const testContent = '<h1>P11D Test Document</h1><p>This is a test to see if the modal works.</p>';
+            console.log('Showing test content in modal...');
+            showTaxDocumentModal('P11D - Test', testContent);
+          } catch (error) {
+            console.error('Error generating P11D:', error);
+            alert('Error generating P11D document: ' + error.message);
+          }
+        });
+      }
+    }); // End of DOMContentLoaded
+
+    // ====== REMOVED DUPLICATE CODE - Event listeners moved inside DOMContentLoaded above ======
+      const generateP60 = document.getElementById('generateP60Btn');
+      if (generateP60) {
+        generateP60.addEventListener('click', () => {
+          alert('P60 button clicked!'); // Debug alert
+          try {
+            console.log('Generating P60 document...');
+            
+            // Test with simple content first
+            const testContent = '<h1>P60 Test Document</h1><p>This is a test to see if the modal works.</p>';
+            console.log('Showing test content in modal...');
+            showTaxDocumentModal('P60 - Test', testContent);
+            
+            // Also try to generate actual content
+            try {
+              const p60Content = generateP60Document();
+              console.log('P60 Content generated:', p60Content ? 'Success' : 'Failed');
+              console.log('P60 Content preview:', p60Content ? p60Content.substring(0, 100) + '...' : 'No content');
+            } catch (e) {
+              console.error('Error in generateP60Document:', e);
+            }
+            
+            // Also try new window
+            const newWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
+            if (newWindow) {
+              const fullHTML = `<!DOCTYPE html>
+<html>
+<head>
+  <title>P60 - End of Year Certificate</title>
+  <style>
+    body { margin: 20px; font-family: Arial, sans-serif; }
+    @media print { 
+      body { margin: 0; } 
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="text-align: right; margin-bottom: 20px;">
+    <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer;">Print Document</button>
+    <button onclick="window.close()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+  </div>
+  ${p60Content}
+</body>
+</html>`;
+              newWindow.document.open();
+              newWindow.document.write(fullHTML);
+              newWindow.document.close();
+              newWindow.focus();
+            }
+          } catch (error) {
+            console.error('Error generating P60:', error);
+            alert('Error generating P60 document: ' + error.message);
+          }
+        });
+      }
+      
+      // P11D Generation
+      const generateP11D = document.getElementById('generateP11DBtn');
+      if (generateP11D) {
+        generateP11D.addEventListener('click', () => {
+          alert('P11D button clicked!'); // Debug alert
+          try {
+            console.log('Generating P11D document...');
+            
+            // Test with simple content first
+            const testContent = '<h1>P11D Test Document</h1><p>This is a test to see if the modal works.</p>';
+            console.log('Showing test content in modal...');
+            showTaxDocumentModal('P11D - Test', testContent);
+            
+            // Also try to generate actual content
+            try {
+              const p11dContent = generateP11DDocument();
+              console.log('P11D Content generated:', p11dContent ? 'Success' : 'Failed');
+              console.log('P11D Content preview:', p11dContent ? p11dContent.substring(0, 100) + '...' : 'No content');
+            } catch (e) {
+              console.error('Error in generateP11DDocument:', e);
+            }
+            
+            // Also try new window
+            const newWindow = window.open('', '_blank', 'width=900,height=700,scrollbars=yes');
+            if (newWindow) {
+              const fullHTML = `<!DOCTYPE html>
+<html>
+<head>
+  <title>P11D - Benefits and Expenses</title>
+  <style>
+    body { margin: 20px; font-family: Arial, sans-serif; }
+    @media print { 
+      body { margin: 0; } 
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="text-align: right; margin-bottom: 20px;">
+    <button onclick="window.print()" style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 5px; cursor: pointer;">Print Document</button>
+    <button onclick="window.close()" style="padding: 10px 20px; background: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">Close</button>
+  </div>
+  ${p11dContent}
+</body>
+</html>`;
+              console.log('Writing to new window...');
+              newWindow.document.open();
+              newWindow.document.write(fullHTML);
+              newWindow.document.close();
+              newWindow.focus();
+            }
+          } catch (error) {
+            console.error('Error generating P11D:', error);
+            alert('Error generating P11D document: ' + error.message);
+          }
+        });
+      }
+      
+      // P60 Download
+      const downloadP60 = document.getElementById('downloadP60Btn');
+      if (downloadP60) {
+        downloadP60.addEventListener('click', async () => {
+          const p60Content = generateP60Document();
+          const ok = await ensureHtml2Pdf();
+          if (!ok) { 
+            alert('PDF generation not available. Please use the Generate button to view and print.');
+            return;
+          }
+          
+          let sandbox = document.getElementById('taxDocSandbox');
+          if (!sandbox) {
+            sandbox = document.createElement('div');
+            sandbox.id = 'taxDocSandbox';
+            sandbox.style.position = 'fixed';
+            sandbox.style.left = '-99999px';
+            sandbox.style.top = '0';
+            sandbox.style.width = '794px';
+            sandbox.style.padding = '16px';
+            document.body.appendChild(sandbox);
+          }
+          sandbox.innerHTML = p60Content;
+          
+          const opt = {
+            margin: 0.5,
+            filename: 'P60-SurinderSingh-2024-25.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+          };
+          
+          try {
+            await html2pdf().set(opt).from(sandbox).save();
+          } catch (e) {
+            console.error(e);
+            alert('PDF export failed — use Generate to view and print instead.');
+          }
+        });
+      }
+      
+      // P11D Download
+      const downloadP11D = document.getElementById('downloadP11DBtn');
+      if (downloadP11D) {
+        downloadP11D.addEventListener('click', async () => {
+          const p11dContent = generateP11DDocument();
+          const ok = await ensureHtml2Pdf();
+          if (!ok) {
+            alert('PDF generation not available. Please use the Generate button to view and print.');
+            return;
+          }
+          
+          let sandbox = document.getElementById('taxDocSandbox');
+          if (!sandbox) {
+            sandbox = document.createElement('div');
+            sandbox.id = 'taxDocSandbox';
+            sandbox.style.position = 'fixed';
+            sandbox.style.left = '-99999px';
+            sandbox.style.top = '0';
+            sandbox.style.width = '794px';
+            sandbox.style.padding = '16px';
+            document.body.appendChild(sandbox);
+          }
+          sandbox.innerHTML = p11dContent;
+          
+          const opt = {
+            margin: 0.5,
+            filename: 'P11D-SurinderSingh-2024-25.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+          };
+          
+          try {
+            await html2pdf().set(opt).from(sandbox).save();
+          } catch (e) {
+            console.error(e);
+            alert('PDF export failed — use Generate to view and print instead.');
+          }
+        });
+      }
+
+    // On first load render history and show login or load latest
+    window.addEventListener('DOMContentLoaded', ()=>{
+      renderHistoryOptions();
+      const role = sessionStorage.getItem('payslip_role');
+      if (!role){
+        loginEl.style.display='flex';
+      } else {
+        const dashboard = document.getElementById('dashboard');
+        const mainWorkspace = document.getElementById('mainWorkspace');
+        const backBtn = document.getElementById('backToDashboard');
+        
+        if (role === 'viewer') {
+          if (dashboard) dashboard.style.display = 'block';
+          if (mainWorkspace) mainWorkspace.style.display = 'none';
+          if (backBtn) backBtn.style.display = 'block';
+          renderDashboard();
+        } else {
+          if (dashboard) dashboard.style.display = 'none';
+          if (mainWorkspace) mainWorkspace.style.display = 'block';
+          if (backBtn) backBtn.style.display = 'none';
+        }
+        loadSavedPayslip();
+      }
+    });
+  </script>
+</body>
+</html>
